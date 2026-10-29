@@ -13,6 +13,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import java.util.List;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.util.Optional;
 
@@ -35,8 +42,21 @@ class AnimalServiceTest {
     @Mock
     private NotificationClient notificationClient;
 
+    @Captor
+    private ArgumentCaptor<List<Long>> idsCaptor;
+
     @InjectMocks
     private AnimalService animalService;
+
+    private Animal animal(Long id, String name, AnimalStatus status) {
+        Animal animal = new Animal();
+        animal.setId(id);
+        animal.setName(name);
+        animal.setType(AnimalType.DOG);
+        animal.setStatus(status);
+        return animal;
+    }
+
 
     @Test
     void create_shouldSaveAnimalWithAvailableStatus() {
@@ -76,5 +96,50 @@ class AnimalServiceTest {
         assertThatThrownBy(() -> animalService.adopt(
                 new AdoptionRequest(1L, "Anna", "anna@example.com")))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    // ---- ANIMAL-1: the three new tests ----
+
+    @Test
+    void adopt_shouldMarkAnimalAdoptedAndSendNotificationWithCorrectDetails() {
+        Animal rex = animal(1L, "Rex", AnimalStatus.AVAILABLE);
+        when(animalRepository.findById(1L)).thenReturn(Optional.of(rex));
+        when(animalRepository.save(rex)).thenReturn(rex);
+
+        AnimalResponse response = animalService.adopt(
+                new AdoptionRequest(1L, "Anna", "anna@example.com"));
+
+        assertThat(response.status()).isEqualTo(AnimalStatus.ADOPTED);
+        assertThat(rex.getStatus()).isEqualTo(AnimalStatus.ADOPTED);
+        verify(animalRepository).save(rex);
+        verify(notificationClient).sendAdoptionNotification(1L, "Rex", "anna@example.com");
+    }
+
+    @Test
+    void reserveMultiple_shouldNotifyWithExactlyTheReservedIds() {
+        Animal rex = animal(1L, "Rex", AnimalStatus.AVAILABLE);
+        Animal luna = animal(2L, "Luna", AnimalStatus.AVAILABLE);
+        when(animalRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(rex, luna));
+        when(animalRepository.save(any(Animal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<AnimalResponse> responses = animalService.reserveMultiple(List.of(1L, 2L));
+
+        assertThat(responses).extracting(AnimalResponse::status)
+                .containsOnly(AnimalStatus.RESERVED);
+        verify(notificationClient).sendBulkStatusNotification(idsCaptor.capture(), eq("RESERVED"));
+        assertThat(idsCaptor.getValue()).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void create_shouldRejectDuplicateMicrochipAndNotSave() {
+        when(animalRepository.existsByMicrochipId("985112000123456")).thenReturn(true);
+
+        assertThatThrownBy(() -> animalService.create(
+                new AnimalCreateRequest("Rex", AnimalType.DOG, "Labrador", 3, "Friendly", "985112000123456")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("985112000123456");
+
+        verify(animalRepository, never()).save(any(Animal.class));
+        verifyNoInteractions(notificationClient);
     }
 }
