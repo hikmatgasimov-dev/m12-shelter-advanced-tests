@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-
+import org.springframework.dao.DataIntegrityViolationException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -26,6 +27,8 @@ class AnimalRepositoryTest {
     @Autowired
     private TestEntityManager entityManager;
 
+    // ---- ANIMAL-3: the two tests ----
+
     @Test
     void findByStatus_shouldReturnOnlyMatchingAnimals() {
         entityManager.persist(newAnimal("Rex", AnimalType.DOG, AnimalStatus.AVAILABLE));
@@ -36,6 +39,30 @@ class AnimalRepositoryTest {
 
         assertThat(available).hasSize(1);
         assertThat(available.getFirst().getName()).isEqualTo("Rex");
+    }
+    @Test
+    void save_shouldFailWhenMicrochipIdIsDuplicated() {
+        Animal rex = newAnimal("Rex", AnimalType.DOG, AnimalStatus.AVAILABLE);
+        rex.setMicrochipId("985112000123456");
+        entityManager.persist(rex);
+        entityManager.flush();
+
+        Animal impostor = newAnimal("Impostor", AnimalType.CAT, AnimalStatus.AVAILABLE);
+        impostor.setMicrochipId("985112000123456");
+
+        assertThatThrownBy(() -> {
+            animalRepository.save(impostor);
+            entityManager.flush();
+        }).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void save_shouldAllowSeveralAnimalsWithoutMicrochipId() {
+        entityManager.persist(newAnimal("Rex", AnimalType.DOG, AnimalStatus.AVAILABLE));
+        entityManager.persist(newAnimal("Mia", AnimalType.CAT, AnimalStatus.AVAILABLE));
+        entityManager.flush();
+
+        assertThat(animalRepository.findAll()).hasSize(2);
     }
 
     private Animal newAnimal(String name, AnimalType type, AnimalStatus status) {
