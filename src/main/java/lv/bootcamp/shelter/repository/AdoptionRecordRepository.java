@@ -23,4 +23,7 @@ public interface AdoptionRecordRepository extends JpaRepository<AdoptionRecord, 
     List<AdoptionRecord> findRecentAdoptionsByAnimalType(
             @Param("type") AnimalType type,
             @Param("since") LocalDateTime since);
+
+    // Derived query: Spring Data builds "WHERE adopter_email LIKE '%suffix'" from the method name.
+    List<AdoptionRecord> findByAdopterEmailEndingWith(String emailSuffix);
 }

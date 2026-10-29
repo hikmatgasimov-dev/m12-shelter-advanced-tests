@@ -75,6 +75,30 @@ class AdoptionRecordRepositoryTest {
                 .findRecentAdoptionsByAnimalType(AnimalType.DOG, LocalDateTime.now().minusDays(30));
 
         assertThat(result).isEmpty();
+
+    }
+    @Test
+    void findByAdopterEmailEndingWith_shouldReturnOnlyAdoptersFromThatDomain() {
+        Animal dog = persistAnimal("Rex", AnimalType.DOG);
+        Animal cat = persistAnimal("Mia", AnimalType.CAT);
+        Animal bird = persistAnimal("Kiwi", AnimalType.BIRD);
+        LocalDateTime now = LocalDateTime.now();
+
+        persistRecord(dog, "anna@example.com", now);
+        persistRecord(cat, "bob@example.com", now);
+        persistRecord(bird, "carl@other.org", now);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<AdoptionRecord> example = adoptionRecordRepository.findByAdopterEmailEndingWith("@example.com");
+        List<AdoptionRecord> other = adoptionRecordRepository.findByAdopterEmailEndingWith("@other.org");
+        List<AdoptionRecord> unknown = adoptionRecordRepository.findByAdopterEmailEndingWith("@nowhere.net");
+
+        assertThat(example).extracting(AdoptionRecord::getAdopterEmail)
+                .containsExactlyInAnyOrder("anna@example.com", "bob@example.com");
+        assertThat(other).extracting(AdoptionRecord::getAdopterEmail)
+                .containsExactly("carl@other.org");
+        assertThat(unknown).isEmpty();
     }
 
     // The animal must be persisted first: the record points to it (many-to-one).
