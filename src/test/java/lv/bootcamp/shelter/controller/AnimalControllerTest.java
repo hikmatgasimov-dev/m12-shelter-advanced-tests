@@ -56,7 +56,7 @@ class AnimalControllerTest {
         mockMvc.perform(get("/api/animals/99"))
                 .andExpect(status().isNotFound());
     }
-    // ---- ANIMAL-2: the two new tests ----
+    // ---- ANIMAL-2: the two  tests ----
 
     @Test
     void findAll_shouldReturnAnimalsAsJson() throws Exception {
