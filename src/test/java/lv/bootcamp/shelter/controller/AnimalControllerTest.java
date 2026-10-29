@@ -25,7 +25,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.mockito.ArgumentCaptor;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 /**
  * Ticket: ANIMAL-2 (see README).
  * findById_shouldReturn404WhenNotFound is already implemented as a worked
@@ -87,5 +91,30 @@ class AnimalControllerTest {
                 .andExpect(jsonPath("$.errors", hasSize(3)));
 
         verifyNoInteractions(animalService);
+    }
+
+    // ---- Bonus: success path ----
+
+    @Test
+    void create_shouldReturn201WithCreatedAnimalWhenBodyIsValid() throws Exception {
+        AnimalCreateRequest request = new AnimalCreateRequest(
+                "Rex", AnimalType.DOG, "Labrador", 3, "Friendly", "985112000123456");
+        when(animalService.create(any(AnimalCreateRequest.class))).thenReturn(
+                new AnimalResponse(7L, "Rex", AnimalType.DOG, "Labrador", 3, "Friendly", AnimalStatus.AVAILABLE));
+
+        mockMvc.perform(post("/api/animals")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(7))
+                .andExpect(jsonPath("$.name").value("Rex"))
+                .andExpect(jsonPath("$.type").value("DOG"))
+                .andExpect(jsonPath("$.status").value("AVAILABLE"));
+
+        // the JSON body really arrived at the service as the object we sent
+        ArgumentCaptor<AnimalCreateRequest> captor = ArgumentCaptor.forClass(AnimalCreateRequest.class);
+        verify(animalService).create(captor.capture());
+        assertThat(captor.getValue()).isEqualTo(request);
     }
 }
