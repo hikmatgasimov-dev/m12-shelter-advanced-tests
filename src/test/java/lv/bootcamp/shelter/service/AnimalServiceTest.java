@@ -98,7 +98,7 @@ class AnimalServiceTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
-    // ---- ANIMAL-1: the three new tests ----
+    // ---- ANIMAL-1: the three  tests ----
 
     @Test
     void adopt_shouldMarkAnimalAdoptedAndSendNotificationWithCorrectDetails() {
